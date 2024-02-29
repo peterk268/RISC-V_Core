@@ -96,14 +96,26 @@
    $is_add = $dec_bits == 11'b0_000_0110011;
    
    // Register File Read
+   m4+rf(32, 32, $reset, $wr_en, $wr_index[4:0], $result[31:0], $rd_en1, $rs1[4:0], $src1_value, $rd_en2, $rs2[4:0], $src2_value)
    
+   // Arithmetic Logic Unit
+   $result[31:0] = $is_addi ? $src1_value + $imm :
+                   $is_add  ? $src1_value + $src2_value :
+                              32'b0;
+   
+   // Register File Write
+   // Connecting write back to result output 
+   // Write enable is allowed only if the destination register is not 0 since
+   // x0 (register file index 0) is always 0 in RISC-V
+   $wr_en = $wr_index != 16'b0;
+   // Test case
+   // $wr_index[4:0] = 16'b0;
    
    
    // Assert these to end simulation (before Makerchip cycle limit).
    *passed = 1'b0;
    *failed = *cyc_cnt > M4_MAX_CYC;
    
-   //m4+rf(32, 32, $reset, $wr_en, $wr_index[4:0], $wr_data[31:0], $rd_en1, $rd_index1[4:0], $rd_data1, $rd_en2, $rd_index2[4:0], $rd_data2)
    //m4+dmem(32, 32, $reset, $addr[4:0], $wr_en, $wr_data[31:0], $rd_en, $rd_data)
    m4+cpu_viz()
 \SV
