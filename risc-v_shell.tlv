@@ -15,7 +15,11 @@
    $reset = *reset;
    
    // Counter
-   $next_pc[31:0] = $reset ? 32'b0 : $taken_br ? $br_tgt_pc[31:0] : $pc + 32'b1; // added logic from branch
+   $next_pc[31:0] = $reset ? 32'b0 :
+                    ($taken_br || $is_jal) ? $br_tgt_pc[31:0] :
+                    $is_jalr ? $jalr_tgt_pc[31:0] :
+                    $pc + 32'b100;
+                    // added logic from branch and jump
    $pc[31:0] = >>1$next_pc;
    
    `READONLY_MEM($pc, $$instr[31:0]);
@@ -67,12 +71,25 @@
    
    $is_add = $dec_bits == 11'b0_000_0110011;
    
-   // Register File Read
-   m4+rf(32, 32, $reset, $wr_en, $wr_index[4:0], $result[31:0], $rd_en1, $rs1[4:0], $src1_value, $rd_en2, $rs2[4:0], $src2_value)
+   // Register File Read/Write
+   $rf_write[31:0] = $is_load ? $ld_data[31:0] : $result[31:0];
+   m4+rf(32, 32, $reset, $wr_en, $wr_index[4:0], $rf_write[31:0], $rd_en1, $rs1[4:0], $src1_value, $rd_en2, $rs2[4:0], $src2_value)
    
    // Arithmetic Logic Unit
+   // SLTU and SLTI (set if less than, unsigned) results:
+   $sltu_rslt[31:0] = {31'b0, $src1_value < $src2_value};
+   $sltiu_rslt[31:0] = {31'b0, $src1_value < $imm};
+   
+   // SRA and SRAI (shift right, arithmetic) results:
+   // sign-extended src1
+   $sext_src1[63:0] = { {32{$src1_value[31]}}, $src1_value };
+   // 64-bit sign-extended results, to be truncated
+   $sra_rslt[63:0] = $sext_src1 >> $src2_value[4:0];
+   $srai_rslt[63:0] = $sext_src1 >> $imm[4:0];
+   
    $result[31:0] = $is_addi ? $src1_value + $imm :
                    $is_add  ? $src1_value + $src2_value :
+                   $is_load || $is_store ? $src1_value + $imm:
                               32'b0;
    
    // Register File Write
@@ -121,11 +138,25 @@
    $is_load = $opcode == 7'b0000011;
    $is_store = $is_s_instr;
    
+   // Jump Logic
+   $jalr_tgt_pc[31:0] = $src1_value + $imm;
+   // Updare to pc logic to select correct next_pc 
+   // for jump and link (JAL, $br_tgt_pc) and jump and link register (JALR, $jalr_tgt_pc)
+   
+   // Data Memory
+   // Added additional logic to get address values from result for load and store instructions.
+   // write enable is for stores, read enable is for loads,
+   // write address is our result of $src1_value + $imm,
+   // src2_value provides us the write data
+   // output is the load data, ld_data
+   m4+dmem(32, 32, $reset, $result, $is_store, $src2_value, $is_load, $ld_data)
+   // Added multiplexer to write ld_data instead of result to register file, if is_load
+
+   
    // Assert these to end simulation (before Makerchip cycle limit).
    m4+tb()
    *failed = *cyc_cnt > M4_MAX_CYC;
    
-   //m4+dmem(32, 32, $reset, $addr[4:0], $wr_en, $wr_data[31:0], $rd_en, $rd_data)
    m4+cpu_viz()
 \SV
    endmodule

@@ -1,5 +1,5 @@
-# RISC-V Core (in progress)
-This repository contains the Transaction Level Verilog (TLV) for a RISC-V Core.
+# RISC-V CPU Core
+This repository contains the Transaction Level Verilog (TLV) for a basic RISC-V CPU Core.
 
 ## Using Makerchip:
 Install makerchip:
